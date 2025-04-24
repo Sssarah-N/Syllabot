@@ -146,9 +146,9 @@
     <div class="profile-icon">👤</div>
     <div class="sidebar">
         <ul>
-            <li><a href="courses">Schedule</a></li>
-            <li><a href="courses">Shopping Cart</a></li>
-            <li><a href="courses">Courses</a></li>
+            <li><a href="{{ url_for('view_schedule') }}">Schedule</a></li>
+            <li><a href="{{ url_for('cart') }}">Shopping Cart</a></li>
+            <li><a href="{{ url_for('courses') }}">Courses</a></li>
         </ul>
     </div>
     <div class="main-content">
@@ -234,12 +234,12 @@
             const searchButton = document.getElementById('search-button');
 
             searchButton.addEventListener('click', function() {
-                window.location.href = 'courses';
+                window.location.href = '/courses';
             });
 
             searchInput.addEventListener('keypress', function(event) {
                 if (event.key === 'Enter') {
-                    window.location.href = 'courses';
+                    window.location.href = '/courses';
                 }
             });
         });

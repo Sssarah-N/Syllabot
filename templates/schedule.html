@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schedule - Syllabot</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    .navbar {
+      background: #333; position: fixed; top: 0; width: 100%; z-index: 1000;
+      display: flex;
+    }
+    .navbar a {
+      color: #f2f2f2; padding: 14px 16px; text-decoration: none;
+    }
+    .navbar a:hover { background: #ddd; color: #333; }
+    .schedule-wrapper {
+      margin-top: 60px; padding: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 60px repeat(5, 1fr);
+      grid-auto-rows: 60px;
+      background: #ccc;
+    }
+    .grid div {
+      background: white;
+      border: 1px solid #bbb;
+      position: relative;
+      font-size: 0.8rem;
+      overflow: hidden;
+    }
+    .grid .header {
+      background: #f4f4f4;
+      font-weight: bold;
+      text-align: center;
+      line-height: 60px;
+    }
+    .time-label {
+      background: #f4f4f4;
+      text-align: right;
+      padding-right: 5px;
+      line-height: 60px;
+    }
+    .course-block {
+      background: #fffbcc;
+      padding: 4px;
+      box-sizing: border-box;
+      border-left: 4px solid #f39c12;
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <a href="{{ url_for('index') }}">Home</a>
+    <a href="{{ url_for('cart') }}">Shopping Cart</a>
+    <a href="{{ url_for('courses') }}">Courses</a>
+    <a href="{{ url_for('view_schedule') }}">Schedule</a>
+  </div>
+  <div class="schedule-wrapper">
+    <h1 style="text-align:center; margin-bottom:20px;">Schedule</h1>
+    <div class="grid">
+      <!-- Top row: empty cell + weekdays -->
+      <div class="header"></div>
+      <div class="header">Monday</div>
+      <div class="header">Tuesday</div>
+      <div class="header">Wednesday</div>
+      <div class="header">Thursday</div>
+      <div class="header">Friday</div>
+
+      <!-- Time slots and course blocks -->
+      {% for hour in hours %}
+        <!-- Time label column -->
+        <div class="time-label">{{ "%02d:00"|format(hour) }}</div>
+        {% for day in ['M','T','W','R','F'] %}
+          {% set block = schedule.get((day, hour)) %}
+          {% if block %}
+            <div class="course-block">
+              <strong>{{ block.code }}</strong><br>
+              {{ block.name }}<br>
+              {{ block.start }} - {{ block.end }}
+            </div>
+          {% else %}
+            <div></div>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

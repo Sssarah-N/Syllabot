@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Shopping Cart - Syllabot</title>
+  <style>
+    body { display: flex; flex-direction: column; min-height: 100vh; margin: 0; font-family: sans-serif; }
+    .navbar { background: #333; position: fixed; top:0; width:100%; z-index:1000; }
+    .navbar a { float:left; color:#f2f2f2; padding:14px 16px; text-decoration:none; }
+    .navbar a:hover { background:#ddd; color:#333; }
+    .container { margin-top:60px; flex-grow:1; padding:20px; }
+    .cart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .cart-header h1 { margin:0; font-size:2rem; }
+    table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+    th,td { border:1px solid #ddd; padding:12px; text-align:left; }
+    th { background:#f4f4f4; }
+    .remove-btn { background:#e74c3c; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; }
+    .remove-btn:hover { background:#c0392b; }
+    .summary { text-align:right; font-size:1.1rem; margin-top:10px; }
+    .checkout-btn { background:#27ae60; color:#fff; border:none; padding:10px 20px; font-size:1rem; border-radius:4px; cursor:pointer; float:right; }
+    .checkout-btn:hover { background:#219150; }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <a
+    href="{{ url_for('index') }}"
+    class="{% if request.endpoint == 'index' %}active{% endif %}"
+    {% if request.endpoint == 'index' %}aria-disabled="true"{% endif %}>
+    Home
+  </a>
+  <a
+    href="{{ url_for('cart') }}"
+    class="{% if request.endpoint == 'cart' %}active{% endif %}"
+    {% if request.endpoint == 'cart' %}aria-disabled="true"{% endif %}>
+    Shopping Cart
+  </a>
+  <a
+    href="{{ url_for('courses') }}"
+    class="{% if request.endpoint == 'courses' %}active{% endif %}"
+    {% if request.endpoint == 'courses' %}aria-disabled="true"{% endif %}>
+    Courses
+  </a>
+  <a
+    href="{{ url_for('view_schedule') }}"
+    class="{% if request.endpoint == 'view_schedule' %}active{% endif %}"
+    {% if request.endpoint == 'view_schedule' %}aria-disabled="true"{% endif %}>
+    Schedule
+  </a>
+  </div>
+  <div class="container">
+    <div class="cart-header">
+      <h1>Your Cart</h1>
+      <a href="/courses" class="checkout-btn">Add More Courses</a>
+    </div>
+
+    {% if cart_items %}
+      <table>
+        <thead>
+          <tr>
+            <th>Course Code</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Credits</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in cart_items %}
+            <tr>
+              <td>{{ item.code }}</td>
+              <td>{{ item.name }}</td>
+              <td>{{ item.status }}</td>
+              <td>{{ item.credits }}</td>
+              <td>
+                <form method="POST" action="{{ url_for('remove_from_cart') }}">
+                  <input type="hidden" name="course_id" value="{{ item.id }}">
+                  <button type="submit" class="remove-btn">Remove</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="summary">
+        <strong>Total Credits:</strong> {{ total_credits }}
+      </div>
+      <a href="{{ url_for('checkout') }}" class="checkout-btn">Proceed to Schedule</a>
+
+
+    {% else %}
+      <p><em>Your cart is empty. <a href="{{ url_for('courses') }}">Browse courses</a> to add.</em></p>
+    {% endif %}
+  </div>
+</body>
+</html>

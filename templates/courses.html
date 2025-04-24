@@ -5,19 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Courses - Syllabot</title>
   <style>
-    body {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      margin: 0;
-    }
-    .centered-title {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 40px;
-      font-weight: bold;
-      padding: 20px;
-    }
+    body { display: flex; flex-direction: column; height: 100vh; margin: 0; }
     .navbar {
       background-color: #333;
       overflow: hidden;
@@ -38,45 +26,52 @@
       background-color: #ddd;
       color: black;
     }
-    .content-wrapper {
-      display: flex;
-      flex-grow: 1;
-      margin-top: 50px;
-    }
+    .content-wrapper { display: flex; flex-grow: 1; margin-top: 60px; }
     .sidebar {
       width: 15%;
       background-color: #f4f4f4;
       padding: 20px;
       box-shadow: 2px 0 5px rgba(0,0,0,0.1);
     }
-    .sidebar ul {
-      list-style: none;
-      padding: 0;
-    }
-    .sidebar ul li {
-      margin-bottom: 10px;
-    }
-    .main-content {
-      flex-grow: 1;
+    .sidebar ul { list-style: none; padding: 0; }
+    .sidebar ul li { margin-bottom: 10px; }
+    .main-content { flex-grow: 1; padding: 20px; }
+    .centered-title {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 40px;
+      font-weight: bold;
       padding: 20px;
     }
-    .inline-courses {
-      display: inline;
-      margin-right: 10px;
-    }
-    .filter-submit {
-      margin-top: 15px;
-      padding: 8px 12px;
-      font-size: 1rem;
-    }
+    .filter-submit { margin-top: 15px; padding: 8px 12px; font-size: 1rem; }
   </style>
 </head>
 <body>
   <div class="navbar">
-    <a href="/">Home</a>
-    <a href="/shopping-cart">Shopping Cart</a>
-    <a href="/courses">Courses</a>
-    <a href="/schedule">Schedule</a>
+    <a
+    href="{{ url_for('index') }}"
+    class="{% if request.endpoint == 'index' %}active{% endif %}"
+    {% if request.endpoint == 'index' %}aria-disabled="true"{% endif %}>
+    Home
+  </a>
+  <a
+    href="{{ url_for('cart') }}"
+    class="{% if request.endpoint == 'cart' %}active{% endif %}"
+    {% if request.endpoint == 'cart' %}aria-disabled="true"{% endif %}>
+    Shopping Cart
+  </a>
+  <a
+    href="{{ url_for('courses') }}"
+    class="{% if request.endpoint == 'courses' %}active{% endif %}"
+    {% if request.endpoint == 'courses' %}aria-disabled="true"{% endif %}>
+    Courses
+  </a>
+  <a
+    href="{{ url_for('view_schedule') }}"
+    class="{% if request.endpoint == 'view_schedule' %}active{% endif %}"
+    {% if request.endpoint == 'view_schedule' %}aria-disabled="true"{% endif %}>
+    Schedule
+  </a>
   </div>
 
   <div class="content-wrapper">
