@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syllabot</title>
+    <style>
+        /* Add this to your existing styles */
+        body {
+            display: flex;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            position: relative; /* Ensure body is the positioning context */
+        }
+
+        .sidebar {
+            width: 15%; /* Change to 15% of the screen */
+            background-color: #f4f4f4;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            height: 100vh; /* Full height */
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Center items vertically */
+            align-items: center; /* Center items horizontally */
+        }
+
+        .sidebar ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0; /* Remove default margin */
+        }
+
+        .sidebar li {
+            padding: 20px 0; /* Increase vertical padding */
+            font-size: 30px; /* Make sidebar items larger */
+            font-weight: bold; /* Optional: make text bold */
+        }
+
+        .main-content {
+            width: 85%; /* Remaining 85% of the screen */
+            padding: 20px;
+        }
+
+        .centered-title {
+            text-align: center;
+            margin-top: 20px; /* Adjust as needed */
+            font-size: 60px; /* Make title larger */
+            font-weight: bold; /* Optional: make title bold */
+            padding: 50px;
+        }
+
+        .search-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .search-bar input[type="text"] {
+            width: 80%; /* Increase width */
+            height: 40px; /* Increase height */
+            font-size: 20px; /* Increase font size */
+            padding: 5px;
+            border-radius: 20px; /* Make more rounded */
+            border: 1px solid #ccc;
+            outline: none;
+        }
+
+        .search-bar button {
+            height: 40px; /* Match input height */
+            font-size: 20px; /* Increase font size */
+            padding: 0 10px;
+            border-radius: 20px; /* Make more rounded */
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            margin-right: 10px; /* Space between buttons */
+        }
+
+        .dropdown {
+            width: 80%; /* Set a smaller width for the dropdown */
+            margin: 0 auto; /* Center the dropdown */
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 10px;
+            display: none; /* Initially hide dropdowns */
+        }
+
+        .dropdown h2 {
+            cursor: pointer;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 25px; /* Make headings smaller */
+            display: flex;
+            align-items: center;
+        }
+
+        .dropdown h2::before {
+            content: '▶'; /* Arrow icon pointing right */
+            display: inline-block;
+            margin-right: 10px; /* Space between arrow and text */
+            transition: transform 0.3s ease;
+            font-size: 16px; /* Make arrow smaller */
+        }
+
+        .dropdown.active h2::before {
+            content: '▼'; /* Arrow icon pointing down */
+        }
+
+        .dropdown ul {
+            display: none;
+            list-style-type: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .dropdown.active ul {
+            display: block;
+        }
+
+        .dropdown ul li {
+            margin-bottom: 15px; /* Increase vertical distance between list items */
+        }
+
+        .dropdown input[type="checkbox"] {
+            transform: scale(1.0); /* Make checkboxes smaller */
+        }
+
+        .dropdown label {
+            font-size: 20px; /* Make labels smaller */
+            padding: 10px 0;
+        }
+
+        .profile-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="profile-icon">👤</div>
+    <div class="sidebar">
+        <ul>
+            <li><a href="courses">Schedule</a></li>
+            <li><a href="courses">Shopping Cart</a></li>
+            <li><a href="courses">Courses</a></li>
+        </ul>
+    </div>
+    <div class="main-content">
+        <header>
+            <h1 class="centered-title">Syllabot</h1>
+            <div class="search-bar">
+                <button id="filter-button">Filter</button>
+                <input type="text" id="search-input" placeholder="Search For a Course">
+                <button id="search-button">🔍</button>
+            </div>
+        </header>
+        <div class="content">
+            <div class="dropdown">
+                <h2>School</h2>
+                <ul>
+                    {% for school in schools %}
+                        <li>
+                            <label>
+                                <input type="checkbox" name="schools" value="{{ school }}">
+                                {{ school }}
+                            </label>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            
+            <div class="dropdown">
+                <h2>Open/Closed/Wait List</h2>
+                <ul>
+                    <li>
+                        <label>
+                            <input type="checkbox" name="status" value="Open">
+                            Open
+                        </label>
+                    
+                        <label>
+                            <input type="checkbox" name="status" value="Closed">
+                            Closed
+                        </label>
+                    
+                        <label>
+                            <input type="checkbox" name="status" value="Wait List">
+                            Wait List
+                        </label>
+                    </li>
+                </ul>
+            </div>
+            <div class="dropdown">
+                <h2>Credits</h2>
+                <ul>
+                    {% for i in range(5) %}
+                        <li>
+                            <label>
+                                <input type="checkbox" name="credits" value="{{ i }}">
+                                {{ i }}
+                            </label>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterButton = document.getElementById('filter-button');
+            const dropdowns = document.querySelectorAll('.dropdown');
+
+            filterButton.addEventListener('click', function() {
+                dropdowns.forEach(dropdown => {
+                    dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+                });
+            });
+
+            const dropdownHeaders = document.querySelectorAll('.dropdown h2');
+            dropdownHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    this.parentElement.classList.toggle('active');
+                });
+            });
+
+            // Navigate to courses page on search
+            const searchInput = document.getElementById('search-input');
+            const searchButton = document.getElementById('search-button');
+
+            searchButton.addEventListener('click', function() {
+                window.location.href = 'courses';
+            });
+
+            searchInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    window.location.href = 'courses';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
