@@ -1,0 +1,16 @@
+
+body { display: flex; flex-direction: column; min-height: 100vh; margin: 0; font-family: sans-serif; }
+    .navbar { background: #333; position: fixed; top:0; width:100%; z-index:1000; }
+    .navbar a { float:left; color:#f2f2f2; padding:14px 16px; text-decoration:none; }
+    .navbar a:hover { background:#ddd; color:#333; }
+    .container { margin-top:60px; flex-grow:1; padding:20px; }
+    .cart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .cart-header h1 { margin:0; font-size:2rem; }
+    table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+    th,td { border:1px solid #ddd; padding:12px; text-align:left; }
+    th { background:#f4f4f4; }
+    .remove-btn { background:#e74c3c; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; }
+    .remove-btn:hover { background:#c0392b; }
+    .summary { text-align:right; font-size:1.1rem; margin-top:10px; }
+    .checkout-btn { background:#27ae60; color:#fff; border:none; padding:10px 20px; font-size:1rem; border-radius:4px; cursor:pointer; float:right; }
+    .checkout-btn:hover { background:#219150; }
