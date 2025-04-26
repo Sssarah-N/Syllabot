@@ -6,67 +6,84 @@
   <title>Shopping Cart - Syllabot</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/cart.css') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/navbar.css') }}">
 </head>
 <body>
+  <!-- Standard Navbar -->
   <div class="navbar">
-    <a
-    href="{{ url_for('index') }}"
-    class="{% if request.endpoint == 'index' %}active{% endif %}"
-    {% if request.endpoint == 'index' %}aria-disabled="true"{% endif %}>
-    Home
-  </a>
-  <a
-    href="{{ url_for('cart') }}"
-    class="{% if request.endpoint == 'cart' %}active{% endif %}"
-    {% if request.endpoint == 'cart' %}aria-disabled="true"{% endif %}>
-    Shopping Cart
-  </a>
-  <a
-    href="{{ url_for('courses') }}"
-    class="{% if request.endpoint == 'courses' %}active{% endif %}"
-    {% if request.endpoint == 'courses' %}aria-disabled="true"{% endif %}>
-    Courses
-  </a>
-  <a
-    href="{{ url_for('view_schedule') }}"
-    class="{% if request.endpoint == 'view_schedule' %}active{% endif %}"
-    {% if request.endpoint == 'view_schedule' %}aria-disabled="true"{% endif %}>
-    Schedule
-  </a>
+    <div class="navbar-links">
+        <a href="{{ url_for('courses') }}" class="{% if request.endpoint == 'courses' %}active{% endif %}">Courses</a>
+        <a href="{{ url_for('cart') }}" class="active">Shopping Cart</a>
+        <a href="{{ url_for('view_schedule') }}" class="{% if request.endpoint == 'view_schedule' %}active{% endif %}">Schedule</a>
+    </div>
+    <div class="profile-section">
+        {% if 'logged_in' in session %}
+            <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">Profile</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+            <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Login</a>
+            <a href="{{ url_for('register') }}" class="{% if request.endpoint == 'register' %}active{% endif %}">Register</a>
+        {% endif %}
+        <img src="{{ url_for('static', filename='images/profile.webp') }}" alt="Profile" class="profile-image">
+    </div>
   </div>
+
   <div class="container">
     <div class="cart-header">
       <h1>Your Cart</h1>
-      <a href="{{ url_for('courses') }}" class="checkout-btn">Add More Courses</a>
+      <a href="/courses" class="checkout-btn">Add More Courses</a>
     </div>
 
     {% if sections %}
       <table class="table table-striped">
         <thead>
           <tr>
-            <th>Section ID</th>
             <th>Course ID</th>
-            <th>Instructor ID</th>
-            <th>Term</th>
+            <th>Course Name</th>
+            <th>Section</th>
+            <th>Instructor</th>
+            <th>Instructor Rating</th>
             <th>Location</th>
             <th>Type</th>
-            <th>Section Number</th>
+            <th>Schedule</th>
+            <th>Credits</th>
+            <th>Status</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {% for section in sections %}
             <tr>
-              <td>{{ section[0] }}</td>
-              <td>{{ section[1] }}</td>
-              <td>{{ section[2] }}</td>
-              <td>{{ section[3] }}</td>
-              <td>{{ section[4] }}</td>
-              <td>{{ section[5] }}</td>
-              <td>{{ section[6] }}</td>
+              <td>{{ section.courseID }}</td>
+              <td>{{ section.courseName }}</td>
+              <td>{{ section.sectionNo }}</td>
+              <td>{{ section.instructorName }}</td>
+              <td>
+                {% if section.instructor_rating is not none %}
+                  <div class="rating">
+                    {{ section.instructor_rating }}/5
+                    <div class="stars">
+                      {% for i in range(5) %}
+                        {% if i < section.instructor_rating|int %}
+                          <span class="star-filled">★</span>
+                        {% else %}
+                          <span class="star-empty">☆</span>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% else %}
+                  No rating
+                {% endif %}
+              </td>
+              <td>{{ section.address }}</td>
+              <td>{{ section.sectionType }}</td>
+              <td>{{ section.schedule_time|safe }}</td>
+              <td>{{ section.credit }}</td>
+              <td>{{ section.courseStatus }}</td>
               <td>
                 <form method="POST" action="{{ url_for('remove_from_cart') }}">
-                  <input type="hidden" name="section_id" value="{{ section[0] }}">
+                  <input type="hidden" name="section_id" value="{{ section.sectionID }}">
                   <button type="submit" class="btn btn-danger">Remove</button>
                 </form>
               </td>

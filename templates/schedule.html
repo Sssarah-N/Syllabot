@@ -3,57 +3,153 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Schedule - Syllabot</title>
+  <title>Schedule – Syllabot</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/schedule.css') }}" />
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-    integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7"
-    crossorigin="anonymous"
-  />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/navbar.css') }}">
 </head>
 <body>
+  <!-- Standard Navbar -->
   <div class="navbar">
-    <a href="{{ url_for('index') }}">Home</a>
-    <a href="{{ url_for('cart') }}">Shopping Cart</a>
-    <a href="{{ url_for('courses') }}">Courses</a>
-    <a href="{{ url_for('view_schedule') }}">Schedule</a>
+    <div class="navbar-links">
+        <a href="{{ url_for('cart') }}" class="{% if request.endpoint == 'cart' %}active{% endif %}">Shopping Cart</a>
+        <a href="{{ url_for('courses') }}" class="{% if request.endpoint == 'courses' %}active{% endif %}">Courses</a>
+        <a href="{{ url_for('view_schedule') }}" class="{% if request.endpoint == 'view_schedule' %}active{% endif %}">Schedule</a>
+    </div>
+    <div class="profile-section">
+        {% if 'logged_in' in session %}
+            <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">Profile</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        {% else %}
+            <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Login</a>
+            <a href="{{ url_for('register') }}" class="{% if request.endpoint == 'register' %}active{% endif %}">Register</a>
+        {% endif %}
+        <img src="{{ url_for('static', filename='images/profile.webp') }}" alt="Profile" class="profile-image">
+    </div>
   </div>
 
   <div class="schedule-wrapper container mt-4">
     <h1 class="text-center mb-4">My Schedule</h1>
     <div class="grid">
-      <!-- Corner + Weekday headers -->
-      <div class="header"></div>
-      <div class="header">Mon</div>
-      <div class="header">Tue</div>
-      <div class="header">Wed</div>
-      <div class="header">Thu</div>
-      <div class="header">Fri</div>
-      <div class="header">Sat</div>
-      <div class="header">Sun</div>
+      <!-- Header Row -->
+      <div class="header" style="grid-row:1; grid-column:1;"></div>
+      {% for day in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}
+        <div class="header"
+             style="grid-row:1; grid-column:{{ loop.index + 1 }};">
+          {{ day }}
+        </div>
+      {% endfor %}
 
-      <!-- Time rows -->
+      <!-- Empty Grid Cells -->
       {% for hour in hours %}
-        <div class="time-label">{{ "%02d:00"|format(hour) }}</div>
-        {% for day in ('Mon','Tue','Wed','Thu','Fri','Sat','Sun') %}
-          {% set block = schedule.get((day, hour)) %}
-          {% if block %}
-            {# extract hour portion via slicing #}
-            {% set start_h = block.start[:2] | int %}
-            {% set end_h   = block.end[:2]   | int %}
-            {% set span    = (end_h - start_h) if end_h > start_h else 1 %}
-            <div class="course-block span-{{ span }}">
-              <strong>{{ block.code }} – {{ block.name }}</strong><br>
-              Section {{ block.sect }}<br>
-              {{ block.start }} – {{ block.end }}
-            </div>
-          {% else %}
-            <div class="empty-cell"></div>
-          {% endif %}
+        {% set row = loop.index + 1 %}
+        {% for col in range(2, 9) %}
+          <div class="empty-cell"
+               style="grid-row: {{ row }}; grid-column: {{ col }};"></div>
         {% endfor %}
       {% endfor %}
+
+      <!-- Time Labels -->
+      {% for hour in hours %}
+        {% set row = loop.index + 1 %}
+        <div class="time-label"
+             style="grid-row: {{ row }}; grid-column:1;">
+          {{ "%02d:00"|format(hour) }}
+        </div>
+      {% endfor %}
+
+      <!-- Course Blocks -->
+      {% for (day, hour), block in schedule.items() %}
+        {% set day_idx   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].index(day) + 2 %}
+        {% set sh = block.start[:2]|int %}
+        {% set sm = block.start[3:5]|int %}
+        {% set eh = block.end[:2]|int %}
+        {% set em = block.end[3:5]|int %}
+        {% set start_row = hours.index(sh) + 2 %}
+        {% set duration  = (eh * 60 + em) - (sh * 60 + sm) %}
+        {% set span      = ((duration + 59) // 60) if duration > 0 else 1 %}
+        <div class="course-block"
+             style="--row-span: {{ span }};
+                    grid-column: {{ day_idx }};
+                    grid-row: {{ start_row }} / span var(--row-span);">
+          <strong>{{ block.code }} – {{ block.name }}</strong><br>
+          Section {{ block.sect }}<br>
+          {{ block.start }} – {{ block.end }}
+        </div>
+      {% endfor %}
+
     </div>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const courseBlocks = document.querySelectorAll('.course-block');
+      
+      // Function to check if two elements overlap
+      function elementsOverlap(el1, el2) {
+        const rect1 = el1.getBoundingClientRect();
+        const rect2 = el2.getBoundingClientRect();
+        
+        return !(rect1.right < rect2.left || 
+                 rect1.left > rect2.right || 
+                 rect1.bottom < rect2.top || 
+                 rect1.top > rect2.bottom);
+      }
+      
+      // Check for overlaps and mark conflicts
+      function markConflicts() {
+        for (let i = 0; i < courseBlocks.length; i++) {
+          for (let j = i + 1; j < courseBlocks.length; j++) {
+            if (elementsOverlap(courseBlocks[i], courseBlocks[j])) {
+              courseBlocks[i].classList.add('course-block-conflict');
+              courseBlocks[j].classList.add('course-block-conflict');
+              
+              // Add conflict indicator if not already present
+              if (!courseBlocks[i].querySelector('.conflict-indicator')) {
+                const indicator = document.createElement('span');
+                indicator.className = 'conflict-indicator';
+                indicator.textContent = '!';
+                courseBlocks[i].appendChild(indicator);
+              }
+              
+              if (!courseBlocks[j].querySelector('.conflict-indicator')) {
+                const indicator = document.createElement('span');
+                indicator.className = 'conflict-indicator';
+                indicator.textContent = '!';
+                courseBlocks[j].appendChild(indicator);
+              }
+            }
+          }
+        }
+      }
+      
+      // Run conflict detection after the page layout is complete
+      setTimeout(markConflicts, 500);
+      
+      // Click event handling for course blocks
+      courseBlocks.forEach(block => {
+        block.addEventListener('click', function(event) {
+          event.stopPropagation();
+          
+          courseBlocks.forEach(b => {
+            b.classList.remove('course-block-active');
+            b.style.zIndex = b.classList.contains('course-block-conflict') ? 2 : 1;
+          });
+          
+          this.classList.add('course-block-active');
+          this.style.zIndex = 100;
+        });
+      });
+      
+      // Outside click handling
+      document.addEventListener('click', function(event) {
+        if (!event.target.closest('.course-block')) {
+          courseBlocks.forEach(block => {
+            block.classList.remove('course-block-active');
+          });
+        }
+      });
+    });
+  </script>
 </body>
 </html>

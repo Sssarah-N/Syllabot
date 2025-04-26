@@ -1,5 +1,5 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-from werkzeug.security import check_password_hash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from werkzeug.security import check_password_hash, generate_password_hash
 import mysql.connector
 from mysql.connector import Error
 from functools import wraps
@@ -46,23 +46,7 @@ def login_required(f):
 
 @app.route('/')
 def index():
-    schools = []
-    try:
-        connection = connect_to_database()
-        print("Connection successful")
-        if connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT schoolName FROM school")
-            schools = [row[0] for row in cursor.fetchall()]
-            print("Fetched schools:", schools)
-    except Error as e:
-        print(f"Error: {e}")
-    finally:
-        if connection and connection.is_connected():
-            cursor.close()
-            connection.close()
-    return render_template('index.html', schools=schools)
-
+    return redirect(url_for('courses'))
 
 @app.route('/courses', methods=['GET', 'POST'])
 # @login_required
@@ -70,6 +54,21 @@ def courses():
     courses_by_school = {}
     sections_by_course = {}
     instructor_names = {}
+
+    # Get the user's cart items
+    cart_items = []
+    if 'cart_token' in session:
+        try:
+            cart_conn = connect_to_database()
+            if cart_conn:
+                cart_cursor = cart_conn.cursor()
+                cart_cursor.execute("SELECT sectionID FROM Temp_Cart WHERE session_id = %s", 
+                                   (session['cart_token'],))
+                cart_items = [str(row[0]) for row in cart_cursor.fetchall()]
+                cart_cursor.close()
+                cart_conn.close()
+        except Error as e:
+            print(f"Error fetching cart items: {e}")
 
     try:
         conn = connect_to_database()
@@ -83,6 +82,7 @@ def courses():
         selected_schools = request.args.getlist('school')
         selected_statuses = request.args.getlist('status')
         selected_credits = request.args.getlist('credits')
+        search_query = request.args.get('search', '').strip()
         credit = [float(c) for c in selected_credits]
 
         # Decide which schools to show
@@ -96,8 +96,14 @@ def courses():
                 raw_courses.extend(result.fetchall())
 
             def keep(course_row):
+                course_id = course_row[0]
+                course_name = course_row[1]
                 course_credits = course_row[3]
-                course_status = course_row[4]
+                course_status = course_row[5]
+                
+                # Apply search filter if present
+                if search_query and search_query.lower() not in course_id.lower() and search_query.lower() not in course_name.lower():
+                    return False
                 
                 if selected_statuses and course_status not in selected_statuses:
                     return False
@@ -116,14 +122,31 @@ def courses():
                     sections.extend(result.fetchall())
                 sections_by_course[course_id] = sections
 
-                # Fetch instructor names for each section
+                # Fetch instructor names and section times for each section
                 for section in sections:
-                    instructor_id = section[2]  # Assuming instructorID is at index 2
+                    section_id = section[0]
+                    instructor_id = section[2]
+
+                    # Fetch instructor name
                     if instructor_id not in instructor_names:
                         cursor.execute("SELECT instructorname FROM instructor WHERE instructorID = %s", (instructor_id,))
                         instructor_name = cursor.fetchone()
                         if instructor_name:
                             instructor_names[instructor_id] = instructor_name[0]
+                    
+                    # Fetch section times and days
+                    cursor.execute("""
+                        SELECT st.startTime, st.endTime, sd.day 
+                        FROM sectionTime st 
+                        JOIN sectionDay sd ON st.sectionID = sd.sectionID 
+                        WHERE st.sectionID = %s
+                    """, (section_id,))
+                    times = cursor.fetchall()
+                    
+                    # Add times to the section tuple
+                    section_list = list(section)
+                    section_list.append(times)
+                    sections_by_course[course_id][sections_by_course[course_id].index(section)] = tuple(section_list)
 
     except Error as e:
         print("DB Error:", e)
@@ -140,13 +163,15 @@ def courses():
         all_schools=all_schools,
         selected_schools=selected_schools,
         selected_statuses=selected_statuses,
-        selected_credits=selected_credits
+        selected_credits=selected_credits,
+        cart_items=cart_items,
+        is_home=True  # Flag to indicate this is now the home page
     )
 
 @app.route('/cart')
 def cart():
     sections = []
-    cart_token = session.get('cart_token')  # Assuming the session token is stored in the session
+    cart_token = session.get('cart_token')
 
     if not cart_token:
         flash("No items in cart.", "warning")
@@ -155,13 +180,38 @@ def cart():
     try:
         connection = connect_to_database()
         if connection:
-            cursor = connection.cursor()
-            # Retrieve section IDs from Temp_Cart for the current session
+            cursor = connection.cursor(dictionary=True)
+            # Retrieve sections with instructor, course, time, location and ratings
             cursor.execute("""
-                SELECT *
+                SELECT 
+                    s.sectionID,
+                    s.courseID,
+                    i.instructorName,
+                    s.termID,
+                    s.address,
+                    s.sectionType,
+                    s.sectionNo,
+                    c.courseName,
+                    c.credit,
+                    c.courseStatus,
+                    GROUP_CONCAT(
+                        CONCAT(sd.day, ': ',
+                               TIME_FORMAT(st.startTime, '%h:%i %p'),
+                               ' - ',
+                               TIME_FORMAT(st.endTime, '%h:%i %p')
+                        ) SEPARATOR '<br>'
+                    ) as schedule_time,
+                    (SELECT ir.instructorRating 
+                     FROM instructorrating ir 
+                     WHERE ir.courseID = s.courseID AND ir.instructorID = s.instructorID) as instructor_rating
                 FROM section s
                 JOIN Temp_Cart tc ON s.sectionID = tc.sectionID
+                JOIN course c ON s.courseID = c.courseID
+                JOIN instructor i ON s.instructorID = i.instructorID
+                LEFT JOIN sectionday sd ON s.sectionID = sd.sectionID
+                LEFT JOIN sectiontime st ON s.sectionID = st.sectionID
                 WHERE tc.session_id = %s
+                GROUP BY s.sectionID
             """, (cart_token,))
             sections = cursor.fetchall()
     except Error as e:
@@ -170,6 +220,7 @@ def cart():
         if connection and connection.is_connected():
             cursor.close()
             connection.close()
+    
     return render_template('cart.html', sections=sections)
 
 
@@ -178,18 +229,26 @@ def cart():
 @app.route('/add_to_cart/', methods=['POST'])
 def add_to_cart():
     section_id = request.form.get('section_id')
-    #if not section_id:
-    #    flash("No section selected.", "warning")
-    #    return redirect(url_for('course_detail'))
-
     cart_token = session['cart_token']
     
-
     try:
-        print(cart_token)
         conn = connect_to_database()
         cursor = conn.cursor()
-
+        
+        # Check if the section is already in the cart
+        cursor.execute("SELECT COUNT(*) FROM Temp_Cart WHERE session_id = %s AND sectionID = %s", 
+                      (cart_token, section_id))
+        count = cursor.fetchone()[0]
+        
+        if count > 0:
+            # Already in cart
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': True, 'message': 'Already in cart', 'already_in_cart': True})
+            else:
+                flash("This section is already in your cart.", "info")
+                return redirect(url_for('courses'))
+        
+        # Not in cart, proceed with insert
         cursor.execute("""
             INSERT INTO Temp_Cart (session_id, sectionID)
             VALUES (%s, %s)
@@ -198,18 +257,28 @@ def add_to_cart():
         """, (cart_token, section_id))
 
         conn.commit()
-        flash("Section added to cart!", "success")
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': 'Section added to cart!'})
+        else:
+            flash("Section added to cart!", "success")
 
     except Error as e:
-        print("MYSQL ERROR:", e)          # <— so you see it in your terminal
-        flash("Could not add to cart.", "danger")
-
+        print("MYSQL ERROR:", e)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Could not add to cart.'})
+        else:
+            flash("Could not add to cart.", "danger")
 
     finally:
         cursor.close()
         conn.close()
-    print("redirecting to cart")
-    return redirect(url_for('cart'))
+    
+    if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+        return redirect(url_for('cart'))
+    else:
+        return jsonify({'success': True, 'message': 'Section added to cart!'})
 
 
 # --- Remove Course from Cart ---
@@ -331,67 +400,250 @@ def view_schedule():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
+    # If user is already logged in, redirect to courses
+    if 'logged_in' in session and session['logged_in']:
+        return redirect(url_for('courses'))
+        
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username')
+        password = request.form.get('password')
         
-        try:
-            conn = connect_to_database()
-            cursor = conn.cursor()
-            cursor.execute("SELECT password_hash FROM users WHERE username = %s", (username,))
-            user = cursor.fetchone()
+        if not username or not password:
+            error = 'Username and password are required'
+        else:
+            try:
+                conn = connect_to_database()
+                if conn:
+                    cursor = conn.cursor(dictionary=True)
+                    # Query student info along with login credentials
+                    cursor.execute("""
+                        SELECT s.StudentID, s.name, s.schoolname, s.majorName, s.currentLevel, 
+                               s.email, l.password_hash 
+                        FROM student s
+                        JOIN login l ON s.StudentID = l.StudentID
+                        WHERE s.StudentID = %s
+                    """, (username,))
+                    user = cursor.fetchone()
+                    
+                    if user and check_password_hash(user['password_hash'], password):
+                        # Set session variables
+                        session['logged_in'] = True
+                        session['user_id'] = user['StudentID']
+                        session['user_name'] = user['name']
+                        session['school'] = user['schoolname']
+                        session['major'] = user['majorName']
+                        session['level'] = user['currentLevel']
+                        session['email'] = user['email']
+                        
+                        # Redirect to the next page or requested URL
+                        next_page = request.args.get('next')
+                        if not next_page or not next_page.startswith('/'):
+                            next_page = url_for('courses')
+                        
+                        flash('Login successful! Welcome, ' + user['name'], 'success')
+                        return redirect(next_page)
+                    else:
+                        error = 'Invalid credentials. Please try again.'
+                else:
+                    error = 'Database connection error. Please try again later.'
             
-            if user and check_password_hash(user[0], password):
-                session['logged_in'] = True
-                return redirect(url_for('courses'))
-            else:
-                error = 'Invalid credentials. Please try again.'
-        
-        except Error as e:
-            print(f"Error during login: {e}")
-            error = 'An error occurred. Please try again later.'
-        
-        finally:
-            if conn and conn.is_connected():
-                cursor.close()
-                conn.close()
+            except Error as e:
+                print(f"Error during login: {e}")
+                error = 'An error occurred. Please try again later.'
+            
+            finally:
+                if conn and conn.is_connected():
+                    cursor.close()
+                    conn.close()
     
     return render_template('login.html', error=error)
 
-from werkzeug.security import generate_password_hash
-
-def create_user(username, password):
-    password_hash = generate_password_hash(password)
-    try:
-        conn = connect_to_database()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)", (username, password_hash))
-        conn.commit()
-    except Error as e:
-        print(f"Error creating user: {e}")
-    finally:
-        if conn and conn.is_connected():
-            cursor.close()
-            conn.close()
+@app.route('/logout')
+def logout():
+    # Clear all session data
+    session.clear()
+    flash('You have been logged out successfully.', 'info')
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     error = None
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        if len(password) < 8:
-            error = 'Password must be at least 8 characters long.'
-        else:
-            # Call the create_user function to add the new user
-            try:
-                create_user(username, password)
-                return redirect(url_for('login'))
-            except Error as e:
-                error = 'An error occurred during registration. Please try again.'
+    success = None
     
-    return render_template('register.html', error=error)
+    if request.method == 'POST':
+        student_id = request.form.get('student_id')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        school = request.form.get('school')
+        major = request.form.get('major')
+        level = request.form.get('level')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Validate inputs
+        if not student_id or not name or not email or not school or not major or not level or not password:
+            error = 'All fields are required'
+        elif password != confirm_password:
+            error = 'Passwords do not match'
+        elif len(password) < 8:
+            error = 'Password must be at least 8 characters long'
+        else:
+            try:
+                conn = connect_to_database()
+                if conn:
+                    cursor = conn.cursor()
+                    
+                    # Check if student ID already exists
+                    cursor.execute("SELECT StudentID FROM student WHERE StudentID = %s", (student_id,))
+                    if cursor.fetchone():
+                        error = 'Student ID already exists'
+                    else:
+                        # Insert new student
+                        cursor.execute("""
+                            INSERT INTO student (StudentID, schoolname, majorName, name, currentLevel, email)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (student_id, school, major, name, level, email))
+                        
+                        # Create login credentials
+                        password_hash = generate_password_hash(password)
+                        cursor.execute("""
+                            INSERT INTO login (StudentID, password_hash)
+                            VALUES (%s, %s)
+                        """, (student_id, password_hash))
+                        
+                        conn.commit()
+                        success = 'Registration successful! You can now login.'
+            except Error as e:
+                print(f"Error during registration: {e}")
+                error = 'An error occurred during registration. Please try again.'
+            finally:
+                if conn and conn.is_connected():
+                    cursor.close()
+                    conn.close()
+    
+    # Get schools and majors for the dropdown
+    schools = []
+    majors = []
+    try:
+        conn = connect_to_database()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT schoolName FROM school")
+            schools = [row[0] for row in cursor.fetchall()]
+            
+            cursor.execute("SELECT majorName FROM major")
+            majors = [row[0] for row in cursor.fetchall()]
+    except Error as e:
+        print(f"Error fetching schools and majors: {e}")
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+    
+    return render_template('register.html', error=error, success=success, schools=schools, majors=majors)
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required  # This ensures only logged-in users can access this page
+def profile():
+    # Get user info from the database for the most up-to-date data
+    user_info = None
+    enrolled_courses = []
+    
+    try:
+        conn = connect_to_database()
+        if conn:
+            cursor = conn.cursor(dictionary=True)
+            # Get student information
+            cursor.execute("""
+                SELECT s.*, m.departmentName 
+                FROM student s
+                LEFT JOIN major m ON s.majorName = m.majorName
+                WHERE s.StudentID = %s
+            """, (session['user_id'],))
+            user_info = cursor.fetchone()
+            
+            # Get user's enrolled courses and sections
+            cursor.execute("""
+                SELECT 
+                    c.courseID, 
+                    c.courseName, 
+                    c.credit, 
+                    s.sectionNo, 
+                    i.instructorName,
+                    e.enrollStatus,
+                    GROUP_CONCAT(DISTINCT CONCAT(sd.day, ' ', 
+                                TIME_FORMAT(st.startTime, '%h:%i %p'), '-', 
+                                TIME_FORMAT(st.endTime, '%h:%i %p'))) as schedule
+                FROM enrollment e
+                JOIN section s ON e.sectionID = s.sectionID
+                JOIN course c ON s.courseID = c.courseID
+                JOIN instructor i ON s.instructorID = i.instructorID
+                LEFT JOIN sectionday sd ON s.sectionID = sd.sectionID
+                LEFT JOIN sectiontime st ON s.sectionID = st.sectionID
+                WHERE e.studentID = %s
+                GROUP BY c.courseID, s.sectionID
+            """, (session['user_id'],))
+            enrolled_courses = cursor.fetchall()
+            
+            # Handle profile updates
+            if request.method == 'POST':
+                # Get form data
+                email = request.form.get('email')
+                current_password = request.form.get('current_password')
+                new_password = request.form.get('new_password')
+                confirm_password = request.form.get('confirm_password')
+                
+                # Update email if provided
+                if email and email != user_info['email']:
+                    cursor.execute("""
+                        UPDATE student SET email = %s WHERE StudentID = %s
+                    """, (email, session['user_id']))
+                    conn.commit()
+                    flash('Email updated successfully!', 'success')
+                
+                # Update password if provided
+                if current_password and new_password and confirm_password:
+                    # Verify current password
+                    cursor.execute("""
+                        SELECT password_hash FROM login WHERE StudentID = %s
+                    """, (session['user_id'],))
+                    password_data = cursor.fetchone()
+                    
+                    if password_data and check_password_hash(password_data['password_hash'], current_password):
+                        if new_password == confirm_password:
+                            if len(new_password) >= 8:
+                                # Update password
+                                password_hash = generate_password_hash(new_password)
+                                cursor.execute("""
+                                    UPDATE login SET password_hash = %s WHERE StudentID = %s
+                                """, (password_hash, session['user_id']))
+                                conn.commit()
+                                flash('Password updated successfully!', 'success')
+                            else:
+                                flash('New password must be at least 8 characters long.', 'danger')
+                        else:
+                            flash('New passwords do not match.', 'danger')
+                    else:
+                        flash('Current password is incorrect.', 'danger')
+                
+                # Refresh user data after updates
+                cursor.execute("""
+                    SELECT s.*, m.departmentName 
+                    FROM student s
+                    LEFT JOIN major m ON s.majorName = m.majorName
+                    WHERE s.StudentID = %s
+                """, (session['user_id'],))
+                user_info = cursor.fetchone()
+    
+    except Error as e:
+        print(f"Database error: {e}")
+        flash('An error occurred while retrieving your profile.', 'danger')
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+    
+    return render_template('profile.html', user=user_info, enrolled_courses=enrolled_courses)
 
 if __name__ == '__main__':
     app.run(debug=True)
