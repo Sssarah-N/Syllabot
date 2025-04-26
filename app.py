@@ -144,14 +144,25 @@ def courses():
     )
 
 @app.route('/cart')
-#@login_required
 def cart():
     sections = []
+    cart_token = session.get('cart_token')  # Assuming the session token is stored in the session
+
+    if not cart_token:
+        flash("No items in cart.", "warning")
+        return render_template('cart.html', sections=sections)
+
     try:
         connection = connect_to_database()
         if connection:
             cursor = connection.cursor()
-            cursor.execute("SELECT * FROM section")
+            # Retrieve section IDs from Temp_Cart for the current session
+            cursor.execute("""
+                SELECT *
+                FROM section s
+                JOIN Temp_Cart tc ON s.sectionID = tc.sectionID
+                WHERE tc.session_id = %s
+            """, (cart_token,))
             sections = cursor.fetchall()
     except Error as e:
         print(f"Error: {e}")
@@ -164,24 +175,25 @@ def cart():
 
 
 # ensure every visitor has a cart token
-@app.route('/add-to-cart/', methods=['POST'])
+@app.route('/add_to_cart/', methods=['POST'])
 def add_to_cart():
     section_id = request.form.get('section_id')
-    print(section_id)
     #if not section_id:
     #    flash("No section selected.", "warning")
     #    return redirect(url_for('course_detail'))
 
     cart_token = session['cart_token']
+    
 
     try:
+        print(cart_token)
         conn = connect_to_database()
         cursor = conn.cursor()
 
         cursor.execute("""
-            INSERT INTO Temp_Cart (session_id, section_id)
+            INSERT INTO Temp_Cart (session_id, sectionID)
             VALUES (%s, %s)
-            ON DUPLICATE KEY UPDATE
+            ON DUPLICATE KEY UPDATE 
               created_at = CURRENT_TIMESTAMP
         """, (cart_token, section_id))
 
@@ -189,66 +201,131 @@ def add_to_cart():
         flash("Section added to cart!", "success")
 
     except Error as e:
-        flash(f"Database error: {e}", "danger")
+        print("MYSQL ERROR:", e)          # <— so you see it in your terminal
+        flash("Could not add to cart.", "danger")
+
 
     finally:
         cursor.close()
         conn.close()
-
+    print("redirecting to cart")
     return redirect(url_for('cart'))
 
 
 # --- Remove Course from Cart ---
 @app.route('/remove-from-cart', methods=['POST'])
 def remove_from_cart():
-    course_id = int(request.form['course_id'])
-    cart = session.get('cart', [])
-    cart = [i for i in cart if i['id'] != course_id]
-    session['cart'] = cart
+    section_id = request.form.get('section_id')
+    cart_token = session.get('cart_token')  # Assuming the session token is stored in the session
+
+    if not cart_token:
+        flash("Session token not found.", "warning")
+        return redirect(url_for('cart'))
+
+    try:
+        connection = connect_to_database()
+        if connection:
+            cursor = connection.cursor()
+            # Delete the section from Temp_Cart where session_id and section_id match
+            cursor.execute("""
+                DELETE FROM Temp_Cart
+                WHERE session_id = %s AND sectionID = %s
+            """, (cart_token, section_id))
+            connection.commit()
+            flash("Section removed from cart.", "success")
+    except Error as e:
+        flash(f"Database error: {e}", "danger")
+    finally:
+        if connection and connection.is_connected():
+            cursor.close()
+            connection.close()
+
     return redirect(url_for('cart'))
 
+from flask import session, flash, render_template, redirect, url_for
+from mysql.connector import Error
+
 @app.route('/schedule')
-#@login_required
 def view_schedule():
-    # 1) Get cart from session
-    cart_items = session.get('cart', [])  # list of dicts with keys: id, code, name, ...
+    # 1) Grab the cart_token from the session
+    cart_token = session.get('cart_token')
+    print(cart_token)
+    if not cart_token:
+        flash("No cart found.", "warning")
+        print("No cart found.")
+        return redirect(url_for('courses'))
 
-    # 2) Define hours to display (e.g., 8 AM to 5 PM)
-    hours = list(range(8, 18))  # 8,9,...,17
+    # 2) Fetch all sections in the cart, with their course info
+    cart_items = []
+    try:
+        conn = connect_to_database()
+        cursor = conn.cursor(dictionary=True)
 
-    # 3) Build a schedule map: {(day, hour): {code, name, start, end}}
+        cursor.execute("""
+            SELECT
+              t.sectionID      AS section_id,
+              s.courseID      AS course_id,
+              s.sectionNo AS section_number,
+              c.courseName    AS course_name
+            FROM Temp_Cart t
+            JOIN Section      s ON t.sectionID = s.sectionID
+            JOIN Course       c ON s.courseID = c.courseID
+            WHERE t.session_id = %s
+        """, (cart_token,))
+
+        for row in cursor.fetchall():
+            cart_items.append({
+                'id':   row['section_id'],
+                'code': row['course_id'],
+                'name': row['course_name'],
+                'sect': row['section_number']
+            })
+        print(cart_items)
+
+    except Error as e:
+        app.logger.error(f"DB error fetching cart items: {e}")
+        flash("Could not load your cart.", "danger")
+        return redirect(url_for('courses'))
+    finally:
+        cursor.close()
+        conn.close()
+
+    # 3) Build the calendar grid
+    hours = list(range(8, 25))   # e.g. 8AM–5PM
     schedule_map = {}
+
     try:
         conn = connect_to_database()
         cursor = conn.cursor()
         for item in cart_items:
-            # Call stored proc to get schedule slots for this course
-            cursor.callproc('getCourseSchedule', [item['id']])
+            # call your stored proc; passing the section_id
+            cursor.callproc('getSectionSchedule', [item['id']])
             for result in cursor.stored_results():
-                for row in result.fetchall():
-                    # Assume row = (day_char, "HH:MM", "HH:MM")
-                    day, start, end = row
-                    start_hour = int(start.split(':')[0])
-                    # Use the first matching hour slot
+                for day, start_time, end_time in result.fetchall():
+                    print(day, start_time, end_time)
+                    start_hour = int(start_time.split(':')[0])
                     schedule_map[(day, start_hour)] = {
                         'code':  item['code'],
                         'name':  item['name'],
-                        'start': start,
-                        'end':   end
+                        'sect':  item['sect'],
+                        'start': start_time,
+                        'end':   end_time
                     }
-    except Error as e:
-        print("DB Error:", e)
-    finally:
-        if conn and conn.is_connected():
-            cursor.close()
-            conn.close()
 
-    # 4) Render the schedule grid
+    except Error as e:
+        app.logger.error(f"DB error building schedule: {e}")
+        flash("Could not load your schedule.", "danger")
+    finally:
+        cursor.close()
+        conn.close()
+
+    # 4) Render the grid
     return render_template(
         'schedule.html',
         hours=hours,
         schedule=schedule_map
     )
+
 
 
 @app.route('/login', methods=['GET', 'POST'])
