@@ -22,7 +22,6 @@
             <a href="{{ url_for('logout') }}">Logout</a>
         {% else %}
             <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Login</a>
-            <a href="{{ url_for('register') }}" class="{% if request.endpoint == 'register' %}active{% endif %}">Register</a>
         {% endif %}
         <img src="{{ url_for('static', filename='images/profile.webp') }}" alt="Profile" class="profile-image">
     </div>
@@ -33,6 +32,14 @@
       <h1>Your Cart</h1>
       <a href="/courses" class="checkout-btn">Add More Courses</a>
     </div>
+    
+    <!-- Add banner for anonymous users -->
+    {% if 'logged_in' not in session %}
+    <div class="alert alert-info my-3 guest-alert" id="guest-alert">
+      <button type="button" class="btn-close float-end" aria-label="Close"></button>
+      <p><strong>You're browsing as a guest.</strong> Your cart will only be available in this browser session and will not be saved when you close your browser. <a href="{{ url_for('login') }}">Sign in</a> or <a href="{{ url_for('login', register='true') }}">create an account</a> to save your selections and register for courses.</p>
+    </div>
+    {% endif %}
 
     {% if sections %}
       <table class="table table-striped">
@@ -95,5 +102,25 @@
       <p><em>Your cart is empty. <a href="{{ url_for('courses') }}">Browse courses</a> to add.</em></p>
     {% endif %}
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Handle guest alert dismissal
+      const guestAlert = document.getElementById('guest-alert');
+      if (guestAlert) {
+        // Check if the alert should be hidden based on localStorage
+        if (localStorage.getItem('hideGuestAlert') === 'true') {
+          guestAlert.style.display = 'none';
+        }
+        
+        // Add event listener to the close button
+        const closeButton = guestAlert.querySelector('.btn-close');
+        closeButton.addEventListener('click', function() {
+          guestAlert.style.display = 'none';
+          localStorage.setItem('hideGuestAlert', 'true');
+        });
+      }
+    });
+  </script>
 </body>
 </html>

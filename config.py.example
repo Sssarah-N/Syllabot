@@ -1,0 +1,13 @@
+class Config:
+    # Database Configuration
+    MYSQL_HOST = "your-database-host"  # e.g., localhost or mysql-syllabot-syllabot.l.aivencloud.com
+    MYSQL_USER = "your-username"
+    MYSQL_PASSWORD = "your-password"
+    MYSQL_DB = "defaultdb"  # or your custom database name
+    MYSQL_PORT = 3306  # default MySQL port (may be different for cloud providers)
+    
+    # SSL Configuration for Aiven
+    SSL_ENABLED = True  # Set to False for local MySQL
+    
+    # Secret key for session management (generate a random one for production)
+    SECRET_KEY = "your-secret-key-here" 

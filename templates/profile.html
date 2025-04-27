@@ -9,7 +9,6 @@
     <style>
         body {
             background-color: #f8f9fa;
-            padding-top: 60px;
         }
         .profile-container {
             background-color: white;
@@ -95,13 +94,12 @@
                 <a href="{{ url_for('logout') }}">Logout</a>
             {% else %}
                 <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Login</a>
-                <a href="{{ url_for('register') }}" class="{% if request.endpoint == 'register' %}active{% endif %}">Register</a>
             {% endif %}
             <img src="{{ url_for('static', filename='images/profile.webp') }}" alt="Profile" class="profile-image">
         </div>
     </div>
 
-    <div class="container mt-4">
+    <div class="container content-wrapper">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -213,6 +211,11 @@
                         <div class="mb-3">
                             <label for="email" class="form-label">Email Address</label>
                             <input type="email" class="form-control" id="email" name="email" value="{{ user.email if user else '' }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="date_of_birth" class="form-label">Date of Birth</label>
+                            <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" value="{{ user.dateOfBirth.strftime('%Y-%m-%d') if user and user.dateOfBirth else '' }}">
                         </div>
                         
                         <h5 class="mt-4">Change Password</h5>

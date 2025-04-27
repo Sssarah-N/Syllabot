@@ -27,9 +27,15 @@ body {
     padding: 20px;
 }
 
+.schedule-grid-container {
+    flex: 1;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+/* Grid structure */
 .grid {
     display: grid;
-    /* 1st column for times, then 7 day columns */
     grid-template-columns: 60px repeat(7, 1fr);
     grid-auto-rows: 60px;
     gap: 2px;
@@ -43,7 +49,7 @@ body {
     font-size: 0.8rem;
     overflow: hidden;
     background: white;
-    z-index: 0; /* empties and headers by default */
+    z-index: 1; /* Default z-index */
 }
 
 .grid .header {
@@ -51,7 +57,6 @@ body {
     font-weight: bold;
     text-align: center;
     line-height: 60px;
-    z-index: 0;
 }
 
 .time-label {
@@ -59,29 +64,39 @@ body {
     text-align: right;
     padding-right: 5px;
     line-height: 60px;
-    z-index: 0;
 }
 
 .empty-cell {
     background: #f5efef !important;
-    z-index: 0;
 }
 
+/* Course blocks styling */
 .course-block {
     background: #6fd668; /* light green - normal state */
     padding: 4px;
     box-sizing: border-box;
     border-left: 4px solid #4caf50; /* darker accent */
-    z-index: 1;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
     position: relative; /* Ensure position is set for pseudo-elements */
+    overflow: hidden;
+    z-index: 10; /* Higher than empty cells */
+}
+
+/* Style for placed courses */
+.placed-course {
+    border-left: 4px solid #4caf50;
+    background-color: #8fd9a8; /* Slightly different color to distinguish placed courses */
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    margin: 1px;
 }
 
 /* Style for course blocks with conflicts */
 .course-block-conflict {
     background: #ffcc80; /* Light orange for blocks with conflicts */
     border-left: 4px solid #ff9800; /* Dark orange accent */
+    z-index: 11; /* Higher than normal courses */
 }
 
 /* Style for the overlapping indicator */
@@ -95,18 +110,169 @@ body {
     padding: 2px 4px;
     border-radius: 0 0 0 4px;
     font-weight: bold;
-    z-index: 2;
+    z-index: 12;
 }
 
 /* Optional: Add hover effect to hint at interactivity */
 .course-block:hover {
     outline: 2px solid #4caf50;
+    z-index: 15; /* Ensure hovering brings it to the front */
 }
 
 /* Class to apply when the course block is clicked/active */
 .course-block-active {
-    z-index: 100 !important; /* Much higher z-index to ensure it's on top */
+    z-index: 20 !important; /* Much higher z-index to ensure it's on top */
     transform: scale(1.05); /* Slightly larger */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); /* Stronger shadow for more depth */
     background: #8fe288; /* Slightly lighter green to highlight */
+}
+
+/* Droppable area styling */
+.droppable {
+    transition: background-color 0.2s;
+}
+
+.drop-indicator {
+    background-color: rgba(125, 65, 198, 0.15) !important;
+    border: 2px dashed #7d41c6 !important;
+}
+
+/* Cart styling */
+.cart-course {
+    background-color: white;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    cursor: grab;
+    transition: all 0.2s;
+}
+
+.cart-course:hover {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.cart-course.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.already-placed {
+    opacity: 0.6;
+    background-color: #f0f0f0;
+    border-left: 3px solid #7d41c6;
+}
+
+.already-placed:hover {
+    opacity: 0.8;
+    box-shadow: none;
+    transform: none;
+}
+
+.already-placed::after {
+    content: "✓ On Schedule";
+    display: block;
+    font-size: 11px;
+    color: #7d41c6;
+    font-style: italic;
+    margin-top: 5px;
+}
+
+/* Schedule container layout */
+.schedule-container {
+    display: flex;
+    width: 100%;
+}
+
+/* Toggle cart button */
+.toggle-cart-btn {
+    position: absolute;
+    right: 310px;
+    top: 70px;
+    z-index: 100;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #7d41c6;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+}
+
+.toggle-cart-btn.collapsed {
+    right: 10px;
+}
+
+/* Cart sidebar */
+.cart-sidebar {
+    width: 300px;
+    background-color: #f5f5f5;
+    padding: 15px;
+    border-left: 1px solid #ddd;
+    height: calc(100vh - 150px);
+    overflow-y: auto;
+    transition: all 0.3s ease;
+    transform: translateX(0);
+}
+
+.cart-sidebar.collapsed {
+    transform: translateX(300px);
+    margin-left: -300px;
+}
+
+.cart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.cart-header h4 {
+    margin: 0;
+}
+
+/* Placeholder for empty drop zones */
+.placeholder-text {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    color: #aaa;
+    font-style: italic;
+}
+
+/* View controls */
+.view-controls {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.view-toggle {
+    display: flex;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid #dee2e6;
+}
+
+.view-toggle-btn {
+    padding: 8px 12px;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    transition: all 0.2s;
+}
+
+.view-toggle-btn.active {
+    background: #7d41c6;
+    color: white;
 }
