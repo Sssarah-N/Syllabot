@@ -32,8 +32,8 @@ class Config:
     STUDENT_USER = "student_role"
     STUDENT_PASSWORD = "student_password"
     
-    ADMIN_USER = "syllabot_dev"  # Admin uses the developer role with full access
-    ADMIN_PASSWORD = "dev_password"
+    ADMIN_USER = "avnadmin"  # Same as MYSQL_USER for Aiven
+    ADMIN_PASSWORD = "AVNS_18iQd0hdK7JR4o1_RAo"  # Same as MYSQL_PASSWORD for Aiven
     
     # For read-only operations
     READONLY_USER = "syllabot_readonly"

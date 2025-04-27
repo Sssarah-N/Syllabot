@@ -51,30 +51,33 @@ def ensure_cart_token():
         # If user just logged in and had a temporary cart, convert it
         # Get the temporary cart items and associate them with the user
         old_token = session['cart_token']
-        new_token = f"user_{session['user_id']}"
         
-        try:
-            # Transfer cart items to the user's permanent cart
-            conn = connect_to_database()
-            if conn:
-                cursor = conn.cursor()
-                # First, check if there are items in the temporary cart
-                cursor.execute("SELECT COUNT(*) FROM Temp_Cart WHERE session_id = %s", (old_token,))
-                count = cursor.fetchone()[0]
-                
-                if count > 0:
-                    # Update the session_id to the user's permanent ID
-                    cursor.execute("UPDATE Temp_Cart SET session_id = %s WHERE session_id = %s", 
-                                  (new_token, old_token))
-                    conn.commit()
-                cursor.close()
-                conn.close()
-        except Exception as e:
-            print(f"Error transferring cart: {e}")
-        
-        # Update session with permanent cart token
-        session['cart_token'] = new_token
-        session.pop('is_temporary', None)
+        # Check if user_id exists in session
+        if 'user_id' in session:
+            new_token = f"user_{session['user_id']}"
+            
+            try:
+                # Transfer cart items to the user's permanent cart
+                conn = connect_to_database()
+                if conn:
+                    cursor = conn.cursor()
+                    # First, check if there are items in the temporary cart
+                    cursor.execute("SELECT COUNT(*) FROM Temp_Cart WHERE session_id = %s", (old_token,))
+                    count = cursor.fetchone()[0]
+                    
+                    if count > 0:
+                        # Update the session_id to the user's permanent ID
+                        cursor.execute("UPDATE Temp_Cart SET session_id = %s WHERE session_id = %s", 
+                                      (new_token, old_token))
+                        conn.commit()
+                    cursor.close()
+                    conn.close()
+            except Exception as e:
+                print(f"Error transferring cart: {e}")
+            
+            # Update session with permanent cart token
+            session['cart_token'] = new_token
+            session.pop('is_temporary', None)
 
 # Enhanced security decorators
 def login_required(f):
@@ -113,7 +116,7 @@ def admin_required(f):
 # Connection function that selects the appropriate database user based on role
 def connect_to_database(role=None):
     try:
-        # Determine if we're using Aiven (by checking the SSL_ENABLED flag)
+        # Determine if we're using Aiven
         is_aiven = Config.SSL_ENABLED
         
         # Set up connection parameters
@@ -123,38 +126,49 @@ def connect_to_database(role=None):
             'database': Config.MYSQL_DB
         }
         
-        # Choose the appropriate user based on role
-        if role == 'student':
+        # For admin on Aiven, use the main Aiven credentials to avoid access issues
+        if role == 'admin' and is_aiven:
+            print("Using main Aiven credentials for admin connection")
+            conn_params['user'] = Config.MYSQL_USER  # use avnadmin
+            conn_params['password'] = Config.MYSQL_PASSWORD  # use Aiven password
+        elif role == 'student':
             conn_params['user'] = Config.STUDENT_USER
             conn_params['password'] = Config.STUDENT_PASSWORD
         elif role == 'admin':
             conn_params['user'] = Config.ADMIN_USER
             conn_params['password'] = Config.ADMIN_PASSWORD
         else:
-            # Default application user with limited permissions
+            # Default application user
             conn_params['user'] = Config.MYSQL_USER
             conn_params['password'] = Config.MYSQL_PASSWORD
         
-        # Add SSL configuration for Aiven
+        # Add SSL for Aiven
         if is_aiven:
-            print(f"Connecting to Aiven MySQL at {Config.MYSQL_HOST}")
+            print(f"Connecting to Aiven MySQL at {Config.MYSQL_HOST} as {conn_params['user']}")
             conn_params.update({
                 'ssl_disabled': False,
-                'ssl_verify_cert': False  # Disable certificate verification for easier connection
+                'ssl_verify_cert': False
             })
-        else:
-            print(f"Connecting to local MySQL at {Config.MYSQL_HOST}")
         
-        # Attempt connection
         connection = mysql.connector.connect(**conn_params)
         
         if connection.is_connected():
-            print(f"Connected to the database as {conn_params['user']}")
-        else:
-            print("Failed to connect to the database")
+            print(f"Successfully connected to database as {conn_params['user']}")
         return connection
     except Error as e:
         print(f"Error connecting to database: {e}")
+        if role == 'admin' and 'Access denied' in str(e):
+            print("Access denied with admin credentials, retrying with default credentials")
+            try:
+                # Try with default credentials as fallback
+                conn_params['user'] = Config.MYSQL_USER
+                conn_params['password'] = Config.MYSQL_PASSWORD
+                connection = mysql.connector.connect(**conn_params)
+                if connection.is_connected():
+                    print(f"Connected with fallback credentials")
+                return connection
+            except Error as fallback_error:
+                print(f"Fallback connection failed: {fallback_error}")
         return None
 
 @app.route('/')
@@ -278,7 +292,8 @@ def courses():
         selected_statuses=selected_statuses,
         selected_credits=selected_credits,
         cart_items=cart_items,
-        is_home=True  # Flag to indicate this is now the home page
+        is_home=True,  # Flag to indicate this is now the home page
+        is_admin=session.get('role') == 'admin'  # Flag to indicate if the user is an admin
     )
 
 @app.route('/cart')
@@ -288,7 +303,7 @@ def cart():
 
     if not cart_token:
         flash("No items in cart.", "warning")
-        return render_template('cart.html', sections=sections)
+        return render_template('cart.html', sections=sections, is_admin=session.get('role') == 'admin')
 
     try:
         # Use default database connection for all users
@@ -335,7 +350,7 @@ def cart():
             cursor.close()
             connection.close()
     
-    return render_template('cart.html', sections=sections)
+    return render_template('cart.html', sections=sections, is_admin=session.get('role') == 'admin')
 
 @app.route('/get-cart-courses')
 def get_cart_courses():
@@ -564,12 +579,17 @@ def view_schedule():
                 for day, start_time, end_time in result.fetchall():
                     print(day, start_time, end_time)
                     start_hour = int(start_time.split(':')[0])
+                    
+                    # Format times to remove seconds (HH:MM)
+                    formatted_start = ':'.join(str(start_time).split(':')[:2]) 
+                    formatted_end = ':'.join(str(end_time).split(':')[:2])
+                    
                     schedule_map[(day, start_hour)] = {
                         'code':  item['code'],
                         'name':  item['name'],
                         'sect':  item['sect'],
-                        'start': start_time,
-                        'end':   end_time
+                        'start': formatted_start,
+                        'end':   formatted_end
                     }
 
     except Error as e:
@@ -583,7 +603,8 @@ def view_schedule():
     return render_template(
         'schedule.html',
         hours=hours,
-        schedule=schedule_map
+        schedule=schedule_map,
+        is_admin=session.get('role') == 'admin'
     )
 
 
@@ -659,7 +680,7 @@ def login():
                 if password == Config.ADMIN_PASSWORD:
                     # Set session variables for admin
                     session['logged_in'] = True
-                    session['id'] = 'admin'
+                    session['user_id'] = 'admin'
                     session['name'] = 'Administrator'
                     session['role'] = 'admin'
                     
@@ -898,7 +919,7 @@ def profile():
             cursor.close()
             conn.close()
     
-    return render_template('profile.html', user=user_info, enrolled_courses=enrolled_courses)
+    return render_template('profile.html', user=user_info, enrolled_courses=enrolled_courses, is_admin=session.get('role') == 'admin')
 
 @app.route('/admin/dashboard')
 @admin_required
@@ -931,11 +952,11 @@ def admin_dashboard():
             cursor.execute("SELECT COUNT(*) as count FROM enrollment")
             stats['total_enrollments'] = cursor.fetchone()['count']
             
-            # Get recent enrollments
+            # Get recent enrollments with corrected JOIN using StudentID
             cursor.execute("""
                 SELECT e.enrollDate, s.name as student_name, c.courseID, c.courseName
                 FROM enrollment e
-                JOIN student s ON e.studentID = s.id
+                JOIN student s ON e.studentID = s.StudentID
                 JOIN section sec ON e.sectionID = sec.sectionID
                 JOIN course c ON sec.courseID = c.courseID
                 ORDER BY e.enrollDate DESC
@@ -966,8 +987,19 @@ def admin_users():
         if conn:
             cursor = conn.cursor(dictionary=True)
             
-            # Get all students
-            cursor.execute("SELECT * FROM student ORDER BY name")
+            # Get all students with correctly mapped field names
+            cursor.execute("""
+                SELECT 
+                    StudentID, 
+                    name, 
+                    email, 
+                    currentLevel as level, 
+                    schoolname as school, 
+                    majorName as major,
+                    dateOfBirth
+                FROM student 
+                ORDER BY name
+            """)
             students = cursor.fetchall()
             
             cursor.close()
