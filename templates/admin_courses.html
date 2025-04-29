@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Management - Syllabot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/navbar.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .courses-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px; 
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header-card {
+            background-color: #2c3e50;
+            color: white;
+        }
+        .table-responsive {
+            overflow-x: auto;
+        }
+        .actions-column {
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Admin Navbar -->
+    <div class="navbar">
+        <div class="navbar-links">
+            <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('admin_users') }}">Users</a>
+            <a href="{{ url_for('admin_courses') }}" class="active">Courses</a>
+        </div>
+        <div class="profile-section">
+            {% if 'logged_in' in session %}
+                <span class="badge bg-danger me-2">Admin</span>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('login') }}">Login</a>
+            {% endif %}
+            <img src="{{ url_for('static', filename='images/profile.webp') }}" alt="Profile" class="profile-image">
+        </div>
+    </div>
+
+    <div class="courses-container">
+        <div class="card header-card mb-4">
+            <div class="card-body">
+                <h2>Course Management</h2>
+                <p class="mb-0">Add, edit, and manage courses in the system</p>
+            </div>
+        </div>
+
+        <!-- Add Course Button -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+                    <i class="fas fa-plus"></i> Add New Course
+                </button>
+            </div>
+        </div>
+
+        <!-- Courses Table -->
+        <div class="card">
+            <div class="card-header">
+                <h3>All Courses</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Course ID</th>
+                                <th>Course Name</th>
+                                <th>Department</th>
+                                <th>Credits</th>
+                                <th>Status</th>
+                                <th class="actions-column">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for course in courses %}
+                                <tr>
+                                    <td>{{ course[0] }}</td>
+                                    <td>{{ course[1] }}</td>
+                                    <td>{{ course[2] }}</td>
+                                    <td>{{ course[3] }}</td>
+                                    <td>
+                                        {% if course[5] == 'Open' %}
+                                            <span class="badge bg-success">Open</span>
+                                        {% elif course[5] == 'Closed' %}
+                                            <span class="badge bg-danger">Closed</span>
+                                        {% elif course[5] == 'Wait List' %}
+                                            <span class="badge bg-warning">Wait List</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#viewCourseModal{{ course[0] }}">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editCourseModal{{ course[0] }}">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteCourseModal{{ course[0] }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Course Modal -->
+    <div class="modal fade" id="addCourseModal" tabindex="-1" aria-labelledby="addCourseModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addCourseModalLabel">Add New Course</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{ url_for('admin_add_course') }}" method="POST">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="courseID" class="form-label">Course ID *</label>
+                            <input type="text" class="form-control" id="courseID" name="courseID" required>
+                            <div class="form-text">Example: CS101, MATH203, etc.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="courseName" class="form-label">Course Name *</label>
+                            <input type="text" class="form-control" id="courseName" name="courseName" required>
+                            <div class="form-text">Example: Introduction to Computer Science</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="departmentName" class="form-label">Department Name *</label>
+                            <input type="text" class="form-control" id="departmentName" name="departmentName" required>
+                            <div class="form-text">Example: Computer Science, Mathematics, etc.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="credits" class="form-label">Credits *</label>
+                            <select class="form-select" id="credits" name="credits" required>
+                                <option value="" selected disabled>Select credits</option>
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Course Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="courseStatus" class="form-label">Course Status *</label>
+                            <select class="form-select" id="courseStatus" name="courseStatus" required>
+                                <option value="" selected disabled>Select status</option>
+                                <option value="Open">Open</option>
+                                <option value="Closed">Closed</option>
+                                <option value="Wait List">Wait List</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Course</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals for each course would be here (view, edit, delete) -->
+    {% for course in courses %}
+        <!-- View Course Modal -->
+        <div class="modal fade" id="viewCourseModal{{ course[0] }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Course Details</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <dl class="row">
+                            <dt class="col-sm-4">Course ID:</dt>
+                            <dd class="col-sm-8">{{ course[0] }}</dd>
+                            
+                            <dt class="col-sm-4">Course Name:</dt>
+                            <dd class="col-sm-8">{{ course[1] }}</dd>
+                            
+                            <dt class="col-sm-4">Department:</dt>
+                            <dd class="col-sm-8">{{ course[2] }}</dd>
+                            
+                            <dt class="col-sm-4">Credits:</dt>
+                            <dd class="col-sm-8">{{ course[3] }}</dd>
+                            
+                            <dt class="col-sm-4">Description:</dt>
+                            <dd class="col-sm-8">{{ course[4] }}</dd>
+                            
+                            <dt class="col-sm-4">Status:</dt>
+                            <dd class="col-sm-8">{{ course[5] }}</dd>
+                        </dl>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 

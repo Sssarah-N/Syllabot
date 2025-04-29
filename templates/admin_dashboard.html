@@ -48,7 +48,7 @@
         <div class="navbar-links">
             <a href="{{ url_for('admin_dashboard') }}" class="active">Dashboard</a>
             <a href="{{ url_for('admin_users') }}">Users</a>
-            <a href="{{ url_for('courses') }}">Courses</a>
+            <a href="{{ url_for('admin_courses') }}">Courses</a>
         </div>
         <div class="profile-section">
             {% if 'logged_in' in session %}
@@ -149,13 +149,7 @@
                                 <a href="{{ url_for('admin_users') }}" class="btn btn-primary w-100">Manage Users</a>
                             </div>
                             <div class="col-md-3 mb-2">
-                                <a href="#" class="btn btn-success w-100">Add Course</a>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <a href="#" class="btn btn-info w-100">View Reports</a>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <a href="#" class="btn btn-secondary w-100">System Settings</a>
+                                <a href="{{ url_for('admin_courses') }}" class="btn btn-success w-100">Add Course</a>
                             </div>
                         </div>
                     </div>

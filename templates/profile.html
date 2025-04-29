@@ -133,9 +133,7 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab" aria-controls="info" aria-selected="true">Student Information</button>
                 </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="courses-tab" data-bs-toggle="tab" data-bs-target="#courses" type="button" role="tab" aria-controls="courses" aria-selected="false">Enrolled Courses</button>
-                </li>
+                
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button" role="tab" aria-controls="settings" aria-selected="false">Account Settings</button>
                 </li>
@@ -163,10 +161,6 @@
                     <div class="row info-row">
                         <div class="col-md-3 info-label">Major:</div>
                         <div class="col-md-9">{{ user.majorName if user else 'N/A' }}</div>
-                    </div>
-                    <div class="row info-row">
-                        <div class="col-md-3 info-label">Department:</div>
-                        <div class="col-md-9">{{ user.departmentName if user else 'N/A' }}</div>
                     </div>
                     <div class="row info-row">
                         <div class="col-md-3 info-label">Current Level:</div>
@@ -222,6 +216,46 @@
                         <div class="mb-3">
                             <label for="date_of_birth" class="form-label">Date of Birth</label>
                             <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" value="{{ user.dateOfBirth.strftime('%Y-%m-%d') if user and user.dateOfBirth else '' }}">
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="school" class="form-label">School</label>
+                                <select class="form-select" id="school" name="school" required>
+                                    <option value="">Select school</option>
+                                    <option value="College of Arts and Science" {% if user and user.schoolname == 'College of Arts and Science' %}selected{% endif %}>College of Arts and Science</option>
+                                    <option value="Leonard N. Stern School of Business" {% if user and user.schoolname == 'Leonard N. Stern School of Business' %}selected{% endif %}>Leonard N. Stern School of Business</option>
+                                    <option value="Tandon School of Engineering" {% if user and user.schoolname == 'Tandon School of Engineering' %}selected{% endif %}>Tandon School of Engineering</option>
+                                    <option value="Tisch School of the Arts" {% if user and user.schoolname == 'Tisch School of the Arts' %}selected{% endif %}>Tisch School of the Arts</option>
+                                    <option value="Steinhardt School of Culture, Education, and Human Development" {% if user and user.schoolname == 'Steinhardt School of Culture, Education, and Human Development' %}selected{% endif %}>Steinhardt School of Culture, Education, and Human Development</option>
+                                    <option value="School of Professional Studies" {% if user and user.schoolname == 'School of Professional Studies' %}selected{% endif %}>School of Professional Studies</option>
+                                    <option value="Graduate School of Arts and Science" {% if user and user.schoolname == 'Graduate School of Arts and Science' %}selected{% endif %}>Graduate School of Arts and Science</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="major" class="form-label">Major</label>
+                                <select class="form-select" id="major" name="major" required>
+                                    <option value="">Select major</option>
+                                    <option value="Computer Science" {% if user and user.majorName == 'Computer Science' %}selected{% endif %}>Computer Science</option>
+                                    <option value="Computer Science and Engineering" {% if user and user.majorName == 'Computer Science and Engineering' %}selected{% endif %}>Computer Science and Engineering</option>
+                                    <option value="Cybersecurity" {% if user and user.majorName == 'Cybersecurity' %}selected{% endif %}>Cybersecurity</option>
+                                    <option value="Data Science" {% if user and user.majorName == 'Data Science' %}selected{% endif %}>Data Science</option>
+                                    <option value="Biology" {% if user and user.majorName == 'Biology' %}selected{% endif %}>Biology</option>
+                                    <option value="Chemistry" {% if user and user.majorName == 'Chemistry' %}selected{% endif %}>Chemistry</option>
+                                    <option value="Physics" {% if user and user.majorName == 'Physics' %}selected{% endif %}>Physics</option>
+                                    <option value="Mathematics" {% if user and user.majorName == 'Mathematics' %}selected{% endif %}>Mathematics</option>
+                                    <option value="Engineering" {% if user and user.majorName == 'Engineering' %}selected{% endif %}>Engineering</option>
+                                    <option value="Business" {% if user and user.majorName == 'Business' %}selected{% endif %}>Business</option>
+                                    <option value="Economics" {% if user and user.majorName == 'Economics' %}selected{% endif %}>Economics</option>
+                                    <option value="Psychology" {% if user and user.majorName == 'Psychology' %}selected{% endif %}>Psychology</option>
+                                    <option value="Sociology" {% if user and user.majorName == 'Sociology' %}selected{% endif %}>Sociology</option>
+                                    <option value="Accounting" {% if user and user.majorName == 'Accounting' %}selected{% endif %}>Accounting</option>
+                                    <option value="Music Business" {% if user and user.majorName == 'Music Business' %}selected{% endif %}>Music Business</option>
+                                    <option value="Sport Management" {% if user and user.majorName == 'Sport Management' %}selected{% endif %}>Sport Management</option>
+                                    <option value="Neural Science" {% if user and user.majorName == 'Neural Science' %}selected{% endif %}>Neural Science</option>
+                                    <option value="Comparative Literature" {% if user and user.majorName == 'Comparative Literature' %}selected{% endif %}>Comparative Literature</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <h5 class="mt-4">Change Password</h5>

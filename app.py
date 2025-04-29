@@ -809,42 +809,44 @@ def profile():
                 # Get department information for the student's major
                 if user_info.get('majorName'):
                     cursor.execute("""
-                        SELECT departmentName 
-                        FROM major 
-                        WHERE majorName = %s
+                        SELECT majorName 
+                        FROM student 
+                        WHERE studentID = %s
                     """, (user_info['majorName'],))
                     dept_result = cursor.fetchone()
                     if dept_result:
                         user_info['departmentName'] = dept_result['departmentName']
             
                 # Get user's enrolled courses
-                cursor.execute("""
-                    SELECT 
-                        c.courseID, 
-                        c.courseName, 
-                        c.credit, 
-                        s.sectionNo, 
-                        i.instructorName,
-                        e.enrollStatus,
-                        GROUP_CONCAT(DISTINCT CONCAT(sd.day, ' ', 
-                                    TIME_FORMAT(st.startTime, '%h:%i %p'), '-', 
-                                    TIME_FORMAT(st.endTime, '%h:%i %p'))) as schedule
-                    FROM enrollment e
-                    JOIN section s ON e.sectionID = s.sectionID
-                    JOIN course c ON s.courseID = c.courseID
-                    JOIN instructor i ON s.instructorID = i.instructorID
-                    LEFT JOIN sectionday sd ON s.sectionID = sd.sectionID
-                    LEFT JOIN sectiontime st ON s.sectionID = st.sectionID
-                    WHERE e.studentID = %s
-                    GROUP BY c.courseID, s.sectionID
-                """, (student_id,))
-                enrolled_courses = cursor.fetchall()
+                # cursor.execute("""
+                #     SELECT 
+                #         c.courseID, 
+                #         c.courseName, 
+                #         c.credit, 
+                #         s.sectionNo, 
+                #         i.instructorName,
+                #         e.enrollStatus,
+                #         GROUP_CONCAT(DISTINCT CONCAT(sd.day, ' ', 
+                #                     TIME_FORMAT(st.startTime, '%h:%i %p'), '-', 
+                #                     TIME_FORMAT(st.endTime, '%h:%i %p'))) as schedule
+                #     FROM enrollment e
+                #     JOIN section s ON e.sectionID = s.sectionID
+                #     JOIN course c ON s.courseID = c.courseID
+                #     JOIN instructor i ON s.instructorID = i.instructorID
+                #     LEFT JOIN sectionday sd ON s.sectionID = sd.sectionID
+                #     LEFT JOIN sectiontime st ON s.sectionID = st.sectionID
+                #     WHERE e.studentID = %s
+                #     GROUP BY c.courseID, s.sectionID
+                # """, (student_id,))
+                # enrolled_courses = cursor.fetchall()
                 
                 # Handle profile updates
                 if request.method == 'POST':
                     # Get form data
                     email = request.form.get('email')
                     date_of_birth = request.form.get('date_of_birth')
+                    school = request.form.get('school')
+                    major = request.form.get('major')
                     current_password = request.form.get('current_password')
                     new_password = request.form.get('new_password')
                     confirm_password = request.form.get('confirm_password')
@@ -853,8 +855,23 @@ def profile():
                     
                     # Update email if provided and changed
                     if email and email != user_info['email']:
+                        print(f"Updating email from {user_info['email']} to {email}")
                         cursor.execute("UPDATE student SET email = %s WHERE StudentID = %s", 
                                       (email, student_id))
+                        updates_made = True
+                    
+                    # Update school if provided and changed
+                    if school and school != user_info['schoolname']:
+                        print(f"Updating school from {user_info['schoolname']} to {school}")
+                        cursor.execute("UPDATE student SET schoolname = %s WHERE StudentID = %s",
+                                      (school, student_id))
+                        updates_made = True
+                        
+                    # Update major if provided and changed
+                    if major and major != user_info['majorName']:
+                        print(f"Updating major from {user_info['majorName']} to {major}")
+                        cursor.execute("UPDATE student SET majorName = %s WHERE StudentID = %s",
+                                      (major, student_id))
                         updates_made = True
                     
                     # Update date of birth if provided and changed
@@ -905,12 +922,12 @@ def profile():
                         user_info = cursor.fetchone()
                         
                         # Get department information again
-                        if user_info.get('majorName'):
-                            cursor.execute("SELECT departmentName FROM major WHERE majorName = %s", 
-                                         (user_info['majorName'],))
-                            dept_result = cursor.fetchone()
-                            if dept_result:
-                                user_info['departmentName'] = dept_result['departmentName']
+                        # if user_info.get('majorName'):
+                        #     cursor.execute("SELECT departmentName FROM major WHERE majorName = %s", 
+                        #                  (user_info['majorName'],))
+                        #     dept_result = cursor.fetchone()
+                        #     if dept_result:
+                        #         user_info['departmentName'] = dept_result['departmentName']
                 
     except Exception as e:
         print(f"Error in profile: {e}")
@@ -949,20 +966,20 @@ def admin_dashboard():
             cursor.execute("SELECT COUNT(*) as count FROM section")
             stats['total_sections'] = cursor.fetchone()['count']
             
-            cursor.execute("SELECT COUNT(*) as count FROM enrollment")
-            stats['total_enrollments'] = cursor.fetchone()['count']
+            # cursor.execute("SELECT COUNT(*) as count FROM enrollment")
+            # stats['total_enrollments'] = cursor.fetchone()['count']
             
             # Get recent enrollments with corrected JOIN using StudentID
-            cursor.execute("""
-                SELECT e.enrollDate, s.name as student_name, c.courseID, c.courseName
-                FROM enrollment e
-                JOIN student s ON e.studentID = s.StudentID
-                JOIN section sec ON e.sectionID = sec.sectionID
-                JOIN course c ON sec.courseID = c.courseID
-                ORDER BY e.enrollDate DESC
-                LIMIT 10
-            """)
-            recent_activities = cursor.fetchall()
+            # cursor.execute("""
+            #     SELECT e.enrollDate, s.name as student_name, c.courseID, c.courseName
+            #     FROM enrollment e
+            #     JOIN student s ON e.studentID = s.StudentID
+            #     JOIN section sec ON e.sectionID = sec.sectionID
+            #     JOIN course c ON sec.courseID = c.courseID
+            #     ORDER BY e.enrollDate DESC
+            #     LIMIT 10
+            # """)
+            # recent_activities = cursor.fetchall()
             
             cursor.close()
             conn.close()
@@ -979,39 +996,362 @@ def admin_dashboard():
 @app.route('/admin/users')
 @admin_required
 def admin_users():
+    # Very visible start marker
+    print("\n" + "*" * 50)
+    print("ADMIN_USERS ROUTE IS BEING EXECUTED")
+    print("*" * 50 + "\n")
+    
     students = []
     
     try:
         # Connect using admin role credentials
+        print("Attempting to connect to database with admin role...")
         conn = connect_to_database(role='admin')
         if conn:
+            print("Successfully connected to database")
             cursor = conn.cursor(dictionary=True)
             
             # Get all students with correctly mapped field names
-            cursor.execute("""
+            print("Executing SQL query to fetch students...")
+            sql_query = """
                 SELECT 
                     StudentID, 
                     name, 
                     email, 
-                    currentLevel as level, 
-                    schoolname as school, 
-                    majorName as major,
-                    dateOfBirth
+                    schoolname,
+                    majorName
                 FROM student 
-                ORDER BY name
-            """)
+            """
+            print(f"SQL Query: {sql_query}")
+            cursor.execute(sql_query)
             students = cursor.fetchall()
+            
+            # Debug prints
+            print(f"Number of students found: {len(students)}")
+            if students:
+                print(f"First student data: {students[0]}")
+            else:
+                print("No students found in the database")
+                
+                # Try a simpler query to debug
+                print("Trying a simple COUNT query...")
+                cursor.execute("SELECT COUNT(*) as count FROM student")
+                student_count = cursor.fetchone()['count']
+                print(f"Simple count query returned: {student_count} students")
+                
+                if student_count > 0:
+                    print("Students exist, but the detailed query might have issues.")
+                    cursor.execute("SELECT * FROM student LIMIT 1")
+                    first_student = cursor.fetchone()
+                    print(f"Raw student data: {first_student}")
             
             cursor.close()
             conn.close()
+        else:
+            print("Failed to connect to database")
     except Exception as e:
+        import traceback
         print(f"Error fetching users data: {e}")
+        print("Exception traceback:")
+        print(traceback.format_exc())
         flash("Error retrieving user information", "danger")
+    
+    # Debug: Check what we're sending to the template
+    print(f"Rendering template with {len(students)} students")
+    
+    # Very visible end marker
+    print("\n" + "*" * 50)
+    print("END OF ADMIN_USERS ROUTE")
+    print("*" * 50 + "\n")
     
     return render_template(
         'admin_users.html',
         students=students
     )
+
+@app.route('/admin/courses')
+@admin_required
+def admin_courses():
+    courses = []
+    
+    try:
+        # Connect using admin role credentials
+        conn = connect_to_database(role='admin')
+        if conn:
+            cursor = conn.cursor()
+            
+            # Get all courses
+            cursor.execute("""
+                SELECT c.courseID, c.courseName, c.departmentName, c.credit, 
+                       c.description, c.courseStatus
+                FROM course c
+                ORDER BY c.departmentName, c.courseID
+            """)
+            courses = cursor.fetchall()
+            
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        print(f"Error fetching courses data: {e}")
+        flash("Error retrieving course information", "danger")
+    
+    return render_template(
+        'admin_courses.html',
+        courses=courses
+    )
+
+@app.route('/admin/add-course', methods=['POST'])
+@admin_required
+def admin_add_course():
+    if request.method == 'POST':
+        # Get form data
+        course_id = request.form['courseID']
+        course_name = request.form['courseName']
+        department_name = request.form['departmentName']
+        credits = request.form['credits']
+        description = request.form['description']
+        course_status = request.form['courseStatus']
+        
+        # Connect to database
+        conn = connect_to_database(role='admin')
+        if not conn:
+            flash('Database connection error. Please try again later.', 'danger')
+            return redirect(url_for('admin_courses'))
+        
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Check if course ID already exists
+            cursor.execute('SELECT * FROM course WHERE courseID = %s', (course_id,))
+            existing_course = cursor.fetchone()
+            
+            if existing_course:
+                flash('A course with this ID already exists!', 'danger')
+                return redirect(url_for('admin_courses'))
+            
+            # Check if department exists
+            cursor.execute('SELECT * FROM department WHERE DepartmentName = %s', (department_name,))
+            department = cursor.fetchone()
+            
+            if not department:
+                flash('The specified department does not exist!', 'danger')
+                return redirect(url_for('admin_courses'))
+            
+            # Insert new course
+            cursor.execute(
+                'INSERT INTO course (courseID, courseName, departmentName, credit, description, courseStatus) VALUES (%s, %s, %s, %s, %s, %s)',
+                (course_id, course_name, department_name, credits, description, course_status)
+            )
+            
+            conn.commit()
+            
+            flash('Course added successfully!', 'success')
+            
+        except Exception as e:
+            conn.rollback()
+            print(f"Error adding course: {e}")
+            flash('An error occurred while adding the course. Please try again.', 'danger')
+            
+        finally:
+            cursor.close()
+            conn.close()
+        
+    return redirect(url_for('admin_courses'))
+
+# Add new student route for admin
+@app.route('/admin/add-student', methods=['POST'])
+@admin_required
+def admin_add_student():
+    if request.method == 'POST':
+        # Get form data
+        student_id = request.form['student_id']
+        name = request.form['name']
+        email = request.form['email']
+        level = request.form['level']
+        school = request.form['school']
+        major = request.form['major']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        
+        # Validate input
+        if password != confirm_password:
+            flash('Passwords do not match!', 'danger')
+            return redirect(url_for('admin_users'))
+        
+        # Connect to database
+        conn = connect_to_database(role='admin')
+        if not conn:
+            flash('Database connection error. Please try again later.', 'danger')
+            return redirect(url_for('admin_users'))
+        
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Check if student_id already exists
+            cursor.execute('SELECT * FROM student WHERE StudentID = %s', (student_id,))
+            account = cursor.fetchone()
+            
+            if account:
+                flash('Student ID already exists!', 'danger')
+                return redirect(url_for('admin_users'))
+            
+            # Check if email already exists
+            cursor.execute('SELECT * FROM student WHERE email = %s', (email,))
+            account = cursor.fetchone()
+            
+            if account:
+                flash('Email already exists!', 'danger')
+                return redirect(url_for('admin_users'))
+            
+            # Hash the password
+            hashed_password = generate_password_hash(password)
+            
+            # Insert new student
+            cursor.execute(
+                'INSERT INTO student (StudentID, schoolname, majorName, name, currentLevel, email) VALUES (%s, %s, %s, %s, %s, %s)',
+                (student_id, school, major, name, level, email)
+            )
+            
+            # Insert password into login table
+            cursor.execute(
+                'INSERT INTO login (StudentID, password_hash) VALUES (%s, %s)',
+                (student_id, hashed_password)
+            )
+            
+            conn.commit()
+            
+            flash('Student added successfully!', 'success')
+            
+        except Exception as e:
+            import traceback
+            print(f"Error adding student: {e}")
+            print(traceback.format_exc())
+            flash('An error occurred while adding the student. Please try again.', 'danger')
+            
+        finally:
+            cursor.close()
+            conn.close()
+        
+    return redirect(url_for('admin_users'))
+
+# Edit student route for admin
+@app.route('/admin/edit-student/<student_id>', methods=['POST'])
+@admin_required
+def admin_edit_student(student_id):
+    if request.method == 'POST':
+        # Get form data
+        name = request.form['name']
+        email = request.form['email']
+        school = request.form['school']
+        major = request.form['major']
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Connect to database
+        conn = connect_to_database(role='admin')
+        if not conn:
+            flash('Database connection error. Please try again later.', 'danger')
+            return redirect(url_for('admin_users'))
+        
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Check if student exists
+            cursor.execute('SELECT * FROM student WHERE StudentID = %s', (student_id,))
+            student = cursor.fetchone()
+            
+            if not student:
+                flash('Student not found!', 'danger')
+                return redirect(url_for('admin_users'))
+            
+            # Check if email already exists but belongs to a different student
+            cursor.execute('SELECT * FROM student WHERE email = %s AND StudentID != %s', (email, student_id))
+            account = cursor.fetchone()
+            
+            if account:
+                flash('Email already used by another student!', 'danger')
+                return redirect(url_for('admin_users'))
+            
+            # Update student information
+            cursor.execute(
+                'UPDATE student SET name = %s, email = %s, schoolname = %s, majorName = %s WHERE StudentID = %s',
+                (name, email, school, major, student_id)
+            )
+            
+            # Update password if a new one was provided
+            if new_password:
+                if new_password != confirm_password:
+                    flash('New passwords do not match!', 'danger')
+                    return redirect(url_for('admin_users'))
+                
+                # Hash the new password
+                hashed_password = generate_password_hash(new_password)
+                
+                # Update password in login table
+                cursor.execute(
+                    'UPDATE login SET password_hash = %s WHERE StudentID = %s',
+                    (hashed_password, student_id)
+                )
+            
+            conn.commit()
+            
+            flash('Student updated successfully!', 'success')
+            
+        except Exception as e:
+            import traceback
+            print(f"Error updating student: {e}")
+            print(traceback.format_exc())
+            flash('An error occurred while updating the student. Please try again.', 'danger')
+            
+        finally:
+            cursor.close()
+            conn.close()
+        
+    return redirect(url_for('admin_users'))
+
+# Delete student route for admin
+@app.route('/admin/delete-student/<student_id>', methods=['POST'])
+@admin_required
+def admin_delete_student(student_id):
+    if request.method == 'POST':
+        # Connect to database
+        conn = connect_to_database(role='admin')
+        if not conn:
+            flash('Database connection error. Please try again later.', 'danger')
+            return redirect(url_for('admin_users'))
+        
+        try:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Check if student exists
+            cursor.execute('SELECT * FROM student WHERE StudentID = %s', (student_id,))
+            student = cursor.fetchone()
+            
+            if not student:
+                flash('Student not found!', 'danger')
+                return redirect(url_for('admin_users'))
+            
+            # Delete login information first (to handle foreign key constraint)
+            cursor.execute('DELETE FROM login WHERE StudentID = %s', (student_id,))
+            
+            # Then delete the student
+            cursor.execute('DELETE FROM student WHERE StudentID = %s', (student_id,))
+            
+            conn.commit()
+            
+            flash('Student deleted successfully!', 'success')
+            
+        except Exception as e:
+            import traceback
+            print(f"Error deleting student: {e}")
+            print(traceback.format_exc())
+            flash('An error occurred while deleting the student. Please try again.', 'danger')
+            
+        finally:
+            cursor.close()
+            conn.close()
+        
+    return redirect(url_for('admin_users'))
 
 # Error handlers
 @app.errorhandler(403)
