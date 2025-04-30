@@ -79,6 +79,48 @@ def ensure_cart_token():
             session['cart_token'] = new_token
             session.pop('is_temporary', None)
 
+@app.before_request
+def verify_session_integrity():
+    """
+    Ensure session integrity by verifying the user's role matches their session data.
+    This prevents privilege escalation by navigating back in browser history.
+    """
+    # Skip for login/logout routes
+    if request.path in ['/login', '/logout', '/static']:
+        return
+        
+    # Check if user is logged in
+    if 'logged_in' in session and 'user_id' in session and 'role' in session:
+        user_id = session.get('user_id')
+        claimed_role = session.get('role')
+        
+        # Verify admin role - must be 'admin' user_id
+        if claimed_role == 'admin' and user_id != 'admin':
+            print(f"Security warning: User {user_id} attempted to access with admin role")
+            session.clear()  # Clear the invalid session
+            flash('Your session has expired. Please login again.', 'warning')
+            return redirect(url_for('login'))
+            
+        # For student role, verify against database
+        if claimed_role == 'student':
+            try:
+                conn = connect_to_database()
+                if conn:
+                    cursor = conn.cursor(dictionary=True)
+                    cursor.execute('SELECT StudentID FROM student WHERE StudentID = %s', (user_id,))
+                    account = cursor.fetchone()
+                    cursor.close()
+                    conn.close()
+                    
+                    # If student doesn't exist in database, invalidate session
+                    if not account:
+                        print(f"Security warning: Student {user_id} not found in database")
+                        session.clear()
+                        flash('Your session has expired. Please login again.', 'warning')
+                        return redirect(url_for('login'))
+            except Exception as e:
+                print(f"Error verifying session: {e}")
+
 # Enhanced security decorators
 def login_required(f):
     @wraps(f)
@@ -576,21 +618,33 @@ def view_schedule():
             # call your stored proc; passing the section_id
             cursor.callproc('getSectionSchedule', [item['id']])
             for result in cursor.stored_results():
-                for day, start_time, end_time in result.fetchall():
-                    print(day, start_time, end_time)
-                    start_hour = int(start_time.split(':')[0])
-                    
-                    # Format times to remove seconds (HH:MM)
-                    formatted_start = ':'.join(str(start_time).split(':')[:2]) 
-                    formatted_end = ':'.join(str(end_time).split(':')[:2])
-                    
-                    schedule_map[(day, start_hour)] = {
-                        'code':  item['code'],
-                        'name':  item['name'],
-                        'sect':  item['sect'],
-                        'start': formatted_start,
-                        'end':   formatted_end
-                    }
+                # Print the column names to debug
+                if result.with_rows:
+                    print("Column names:", [col[0] for col in result.description])
+                
+                # Fetch all results and handle the proper number of values
+                rows = result.fetchall()
+                for row in rows:
+                    # Correctly extract values based on the stored procedure's return format
+                    if len(row) >= 3:  # Ensure we have at least 3 columns
+                        day = row[0]
+                        start_time = row[1]
+                        end_time = row[2]
+                        
+                        print(day, start_time, end_time)
+                        start_hour = int(start_time.split(':')[0])
+                        
+                        # Format times to remove seconds (HH:MM)
+                        formatted_start = ':'.join(str(start_time).split(':')[:2]) 
+                        formatted_end = ':'.join(str(end_time).split(':')[:2])
+                        
+                        schedule_map[(day, start_hour)] = {
+                            'code':  item['code'],
+                            'name':  item['name'],
+                            'sect':  item['sect'],
+                            'start': formatted_start,
+                            'end':   formatted_end
+                        }
 
     except Error as e:
         app.logger.error(f"DB error building schedule: {e}")
@@ -619,6 +673,9 @@ def login():
         session['login_referrer'] = request.referrer
 
     if request.method == 'POST':
+        # Clear any existing session data first to prevent role confusion
+        session.clear()
+        
         # User login logic
         username = request.form['username']
         password = request.form['password']
@@ -654,6 +711,7 @@ def login():
                     session['email'] = account['email']
                     session['level'] = account['currentLevel']
                     session['role'] = 'student'
+                    session['session_time'] = datetime.now().timestamp()  # Add timestamp for session freshness check
                     
                     # Debug session data
                     print("Session after login:", session)
@@ -683,6 +741,7 @@ def login():
                     session['user_id'] = 'admin'
                     session['name'] = 'Administrator'
                     session['role'] = 'admin'
+                    session['session_time'] = datetime.now().timestamp()  # Add timestamp for session freshness check
                     
                     flash('Administrator login successful', 'success')
                     return redirect(url_for('admin_dashboard'))

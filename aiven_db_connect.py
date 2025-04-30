@@ -33,7 +33,7 @@ def connect_to_aiven():
         connection = mysql.connector.connect(**conn_params)
         
         if connection.is_connected():
-            db_info = connection.server_info
+            db_info = connection.get_server_info()
             print(f"Connected to MySQL Server version {db_info}")
             
             cursor = connection.cursor()
